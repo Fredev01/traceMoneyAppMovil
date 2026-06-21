@@ -4,12 +4,11 @@
 
 - **Language:** Dart (Flutter)
 - **State management:** flutter_bloc (BLoC / Cubit)
-- **DI:** get_it + injectable
 - **HTTP:** Dio
 - **Serialization:** json_serializable
 - **Error handling:** fpdart (`Either<Failure, T>`)
 - **Routing:** go_router
-- **Local storage:** Hive
+- **Local storage:** flutter_secure_storage (tokens), Hive (datos locales)
 - **Testing:** mocktail + bloc_test
 
 ---
@@ -64,7 +63,6 @@ Rules:
 - No BLoC, no widgets, no Dio here.
 
 ```dart
-@injectable
 class LoginUseCase {
   final AuthRepository _repository;
   const LoginUseCase(this._repository);
@@ -83,9 +81,9 @@ class LoginUseCase {
 
 Contains:
 
-- `repositories/` — Concrete implementations of domain abstract classes. Annotated with `@Injectable(as: XRepository)`.
+- `repositories/` — Concrete implementations of domain abstract classes.
 - `datasources/remote/` — Dio calls to the REST API. One class per feature.
-- `datasources/local/` — Hive / SQLite reads and writes.
+- `datasources/local/` — Hive / flutter_secure_storage reads and writes.
 - `models/` — JSON-serializable classes (`@JsonSerializable`). Each model has a `toEntity()` method. Entities never have `fromModel()`.
 
 Rules:
@@ -95,10 +93,11 @@ Rules:
 - JWT token injection is handled exclusively in `AuthInterceptor` inside `core/network/`.
 
 ```dart
-@Injectable(as: AuthRepository)
 class AuthRepositoryImpl implements AuthRepository {
   final AuthRemoteDataSource _remote;
   final AuthLocalDataSource _local;
+
+  AuthRepositoryImpl(this._remote, this._local);
 
   @override
   Future<Either<AuthFailure, User>> login({...}) async { ... }
@@ -146,6 +145,103 @@ class AuthFailureState extends AuthState {
 
 ---
 
+## Routing
+
+```
+lib/
+└── router/
+    ├── app_router.dart
+    └── routes.dart
+```
+
+This folder lives at the same level as `main.dart`.
+
+### app_router.dart
+
+Core of the app's navigation. Uses `go_router` to define a declarative routing system. Resolves five architectural needs:
+
+1. **Route tree** — Nested routes and sub-routes hierarchy.
+2. **Route protection** — Redirect middleware for private routes (checks auth state).
+3. **Nested navigation** — `ShellRoute` for persistent UI (bottom nav, side drawer).
+4. **External auth flow** — OAuth deep link handling.
+5. **Error and initial state handling** — `errorBuilder` and `initialLocation`.
+
+```dart
+final appRouter = GoRouter(
+  initialLocation: Routes.home.path,
+  redirect: (context, state) {
+    final isAuthenticated = ...; // read auth state
+    final isGoingToLogin = state.matchedLocation == Routes.login.path;
+    if (!isAuthenticated && !isGoingToLogin) return Routes.login.path;
+    if (isAuthenticated && isGoingToLogin) return Routes.home.path;
+    return null;
+  },
+  routes: [ ... ],
+  errorBuilder: (context, state) => ErrorPage(error: state.error),
+);
+```
+
+### routes.dart
+
+Centralized catalog of all app routes. Never write raw path strings (`"/login"`, `"/home"`) anywhere in the codebase — always reference `Routes.<name>`.
+
+Serves three purposes:
+
+1. **Strong typing** — Prevents typos in paths across the codebase.
+2. **Centralized maintenance** — Changing a path requires editing one place only.
+3. **Separation of concerns** — Navigation intent is decoupled from path implementation.
+
+```dart
+class Routes {
+  static final login = RouteProperties(
+    name: 'login',
+    path: '/login',
+  );
+
+  static final home = RouteProperties(
+    name: 'home',
+    path: '/home',
+  );
+
+  static final meterDetail = RouteProperties(
+    name: 'meterDetail',
+    path: 'detail/:idMeter',
+    pathRoot: '/meter',
+  );
+}
+```
+
+Navigate always by name:
+
+```dart
+context.goNamed(Routes.login.name);
+context.goNamed(Routes.meterDetail.name, pathParameters: {'idMeter': id});
+```
+
+### RouteProperties
+
+Defined in `core/router/route_properties.dart`:
+
+```dart
+class RouteProperties {
+  final String name;
+  final String path;
+  final String? pathRoot;
+
+  RouteProperties({
+    required this.name,
+    required this.path,
+    this.pathRoot,
+  });
+}
+```
+
+- `name` — Unique identifier. Used with `context.goNamed()`.
+- `path` — URL fragment. May contain dynamic parameters (`:idMeter`).
+- `pathRoot` — Optional. Documents the absolute parent path for nested routes.
+
+---
+
 ## Shared widgets — Atomic Design
 
 ```
@@ -161,40 +257,35 @@ Rules:
 - Only pages and organisms may contain `BlocBuilder` / `BlocListener`.
 - Molecules and atoms receive everything via constructor parameters.
 
+### Available shared widgets
+
+Before creating a new widget, check `shared/widgets/` first:
+
+- `AppButton` — primary/secondary button with loading state.
+- `AppTextField` — text field with integrated validation.
+- `AppScaffold` — base scaffold with AppBar configured.
+
+Never use `ElevatedButton`, `TextFormField`, or `Scaffold` directly in pages or features. Always use the wrappers from `shared/widgets/atoms/`.
+
 ---
-
-## Shared widgets disponibles
-
-Antes de crear un widget nuevo, verificar si existe en `shared/widgets/`:
-
-- `AppButton` — botón primario/secundario con loading state
-- `AppTextField` — campo con validación integrada
-- `AppScaffold` — scaffold base con AppBar configurado
-
-## Widgets
-
-- Nunca usar `ElevatedButton`, `TextFormField` o `Scaffold` directamente en pages o features.
-- Siempre usar los wrappers de `shared/widgets/atoms/`.
-
-## Provisión de BLoC
-
-El BLoC se provee siempre en el router (GoRouter), nunca dentro de la Page misma.
-
-## Assets
-
-Rutas de imágenes y íconos solo via `AppAssets.iconName` (lib/core/constants/app_assets.dart).
-Nunca strings hardcodeados de rutas en widgets.
 
 ## Core
 
 ```
 core/
-├── di/           # injection.dart + injection.config.dart (generated)
 ├── error/        # base Failure sealed class, base Exception
 ├── network/      # DioClient, AuthInterceptor (JWT + refresh)
+├── router/       # RouteProperties class
 ├── theme/        # AppTheme, AppColors, AppTextStyles
-└── utils/        # Either extensions, constants
+└── utils/        # Either extensions, constants, AppAssets
 ```
+
+---
+
+## Assets
+
+Image and icon paths only via `AppAssets.iconName` (`lib/core/utils/app_assets.dart`).
+Never hardcode asset path strings inside widgets.
 
 ---
 
@@ -220,15 +311,6 @@ Infrastructure implements domain interfaces (dependency inversion). It never imp
 
 ---
 
-## DI registration
-
-- Use `@injectable` on use cases and datasources.
-- Use `@Injectable(as: XRepository)` on repository implementations.
-- Use `@singleton` on `DioClient` and `AuthInterceptor`.
-- Run `flutter pub run build_runner build --delete-conflicting-outputs` after any DI change.
-
----
-
 ## File naming
 
 | Type                 | Convention                   | Example                     |
@@ -240,3 +322,5 @@ Infrastructure implements domain interfaces (dependency inversion). It never imp
 | Model (DTO infra)    | `noun_model.dart`            | `user_model.dart`           |
 | BLoC                 | `noun_bloc/event/state.dart` | `auth_bloc.dart`            |
 | Page                 | `noun_page.dart`             | `login_page.dart`           |
+| Router               | `app_router.dart`            | `app_router.dart`           |
+| Routes catalog       | `routes.dart`                | `routes.dart`               |
