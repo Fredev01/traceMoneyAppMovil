@@ -4,12 +4,14 @@
 
 - **Language:** Dart (Flutter)
 - **State management:** flutter_bloc (BLoC / Cubit)
+- **State equality:** equatable
 - **HTTP:** Dio
 - **Serialization:** json_serializable
 - **Error handling:** fpdart (`Either<Failure, T>`)
 - **Routing:** go_router
 - **Local storage:** flutter_secure_storage (tokens), Hive (datos locales)
 - **Testing:** mocktail + bloc_test
+- **Dependency wiring:** `RepositoryProvider` (flutter_bloc) — no DI framework
 
 ---
 
@@ -113,34 +115,143 @@ class AuthRepositoryImpl implements AuthRepository {
 Contains:
 
 - `bloc/` — `*Bloc` or `*Cubit`, `*Event` (sealed), `*State` (sealed).
-- `pages/` — Full screens. Provides BLoC via `BlocProvider`. Uses `BlocBuilder` / `BlocListener`.
+- `pages/` — Full screens. Uses `BlocBuilder` / `BlocListener`. Dispatches initial events in `initState`.
 - `widgets/` — Feature-specific widgets. No BLoC access; receive data via constructor.
 
-Rules:
+### BLoC vs Cubit — when to use each
 
-- BLoC imports use cases from `application/` only. Never repositories.
-- Use `sealed class` for both events and states (Dart 3+).
-- Use BLoC when there are multiple distinct events. Use Cubit for simple read-only screens.
-- Widgets never import repositories or use cases directly.
+| Use Cubit when | Use BLoC when |
+| --- | --- |
+| Read-only screen (list, detail) | Multiple distinct user intents |
+| 1-3 simple methods | 4+ events |
+| No event tracking needed | Need event history / logging |
+
+When in doubt, start with Cubit. Promote to BLoC only when needed.
+
+### State and event design
+
+- Use `sealed class` for both events and states (Dart 3+). The compiler enforces exhaustive `switch`.
+- All states must implement `Equatable` (or override `==` and `hashCode`). Without this, identical states cause unnecessary rebuilds.
+- One BLoC = one responsibility. If a BLoC has 5+ use cases or mixes list/form concerns, split it (e.g., `IncomeListCubit` + `IncomeFormBloc`).
 
 ```dart
-sealed class AuthEvent { const AuthEvent(); }
+sealed class AuthEvent extends Equatable {
+  const AuthEvent();
+  @override
+  List<Object?> get props => [];
+}
 class LoginRequested extends AuthEvent {
   final LoginRequestDto dto;
   const LoginRequested(this.dto);
+  @override
+  List<Object?> get props => [dto];
 }
 
-sealed class AuthState { const AuthState(); }
+sealed class AuthState extends Equatable {
+  const AuthState();
+  @override
+  List<Object?> get props => [];
+}
 class AuthInitial extends AuthState {}
 class AuthLoading extends AuthState {}
 class AuthSuccess extends AuthState {
   final User user;
   const AuthSuccess(this.user);
+  @override
+  List<Object?> get props => [user];
 }
 class AuthFailureState extends AuthState {
   final String message;
   const AuthFailureState(this.message);
+  @override
+  List<Object?> get props => [message];
 }
+```
+
+### Lifecycle — where to provide each BLoC
+
+| BLoC type | Provide in | Reason |
+| --- | --- | --- |
+| Auth, Theme, Locale (global) | `main.dart` via `BlocProvider` | Lives the entire app session |
+| Feature (Accounts, Income) | Route via `BlocProvider` | Lives only while screen is mounted |
+| Sub-feature (form inside a screen) | Child route via `BlocProvider` | Scoped to the form lifecycle |
+| Shared between sibling routes | `ShellRoute` via `BlocProvider` | Lives in the shell, not each child |
+
+**Rule:** Provide the BLoC at the lowest level that still covers all consumers. Avoid registering feature BLoCs in `main.dart` — that keeps them alive forever and wastes memory.
+
+### Initial events — never in `create:`
+
+```dart
+// ❌ Wrong — couples creation with side effect
+create: (_) => AccountsCubit(getAccounts)..loadAccounts(),
+
+// ✅ Correct — dispatch in initState
+create: (_) => AccountsCubit(getAccounts),
+```
+
+```dart
+// In the page:
+@override
+void initState() {
+  super.initState();
+  context.read<AccountsCubit>().loadAccounts();
+}
+```
+
+### Dependency wiring — `RepositoryProvider` over globals
+
+**Rule:** Never declare top-level `final _repo = ...` globals in the router or any other file. Use `RepositoryProvider` in `main.dart` for repositories. Use cases are cheap to instantiate — create them inline inside `BlocProvider` using `context.read<XRepository>()`.
+
+```dart
+// main.dart
+void main() {
+  runApp(
+    MultiRepositoryProvider(
+      providers: [
+        RepositoryProvider<AuthRepository>(
+          create: (_) => AuthRepositoryImpl(...),
+        ),
+        RepositoryProvider<AccountRepository>(
+          create: (_) => AccountRepositoryImpl(...),
+        ),
+      ],
+      child: const App(),
+    ),
+  );
+}
+
+// app_router.dart
+GoRoute(
+  name: Routes.accounts.name,
+  path: Routes.accounts.path,
+  builder: (context, state) => BlocProvider(
+    create: (ctx) => AccountsCubit(
+      GetAccountsUseCase(ctx.read<AccountRepository>()),
+      DeleteAccountUseCase(ctx.read<AccountRepository>()),
+    ),
+    child: const AccountsPage(),
+  ),
+),
+```
+
+### Rules for the BLoC class itself
+
+- BLoC imports use cases from `application/` only. Never repositories directly.
+- BLoC never imports `BuildContext`, never calls `context.go()`, never touches navigation.
+- Navigation happens in the page via `BlocListener` reacting to a state.
+- BLoC never throws. All failures are `Left(failure)` mapped to a state.
+- Widgets never import repositories or use cases directly.
+
+```dart
+// Navigation from a state — in the page, not the BLoC
+BlocListener<AccountFormBloc, AccountFormState>(
+  listener: (context, state) {
+    if (state is AccountFormSuccess) {
+      context.pop();
+    }
+  },
+  child: ...,
+)
 ```
 
 ---
@@ -165,6 +276,12 @@ Core of the app's navigation. Uses `go_router` to define a declarative routing s
 3. **Nested navigation** — `ShellRoute` for persistent UI (bottom nav, side drawer).
 4. **External auth flow** — OAuth deep link handling.
 5. **Error and initial state handling** — `errorBuilder` and `initialLocation`.
+6. **Feature BLoC scoping** — `BlocProvider` wraps each route so the BLoC lives only while the screen is mounted. Repositories come from `RepositoryProvider` in `main.dart` via `context.read<XRepository>()`.
+
+**Forbidden in this file:**
+
+- Top-level `final _repo = ...` globals for dependencies.
+- Instantiating `Dio`, `Repository`, or `DataSource` at file scope.
 
 ```dart
 final appRouter = GoRouter(
@@ -176,7 +293,18 @@ final appRouter = GoRouter(
     if (isAuthenticated && isGoingToLogin) return Routes.home.path;
     return null;
   },
-  routes: [ ... ],
+  routes: [
+    GoRoute(
+      name: Routes.accounts.name,
+      path: Routes.accounts.path,
+      builder: (context, state) => BlocProvider(
+        create: (ctx) => AccountsCubit(
+          GetAccountsUseCase(ctx.read<AccountRepository>()),
+        ),
+        child: const AccountsPage(),
+      ),
+    ),
+  ],
   errorBuilder: (context, state) => ErrorPage(error: state.error),
 );
 ```

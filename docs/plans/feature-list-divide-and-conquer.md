@@ -2,7 +2,7 @@
 
 ## Context
 
-The project is a blank Flutter app (default counter template). The architecture rules (`/.claude/rules/style-architecture.md`) and the full REST API contract (`docs/api-reference.md`) are defined, but no feature code exists yet. The goal is to identify every screen/feature the mobile client needs, map their inter-dependencies, and group them into independent development waves so multiple features can be built in parallel without blocking each other.
+The architecture rules (`/.claude/rules/style-architecture.md`) and the full REST API contract (`docs/api-reference.md`) are defined. Wave 0 (foundation) is complete. Wave 1 is in progress. The goal is to identify every screen/feature the mobile client needs, map their inter-dependencies, and group them into independent development waves so multiple features can be built in parallel without blocking each other.
 
 ---
 
@@ -56,27 +56,37 @@ foundation
 
 ## Divide & Conquer — development waves
 
-### Wave 0 — Foundation *(sequential, blocks everything)*
+### Wave 0 — Foundation ✅ COMPLETO
 
-Must be completed before any feature work starts.
+**Estado:** Todos los archivos implementados y compilan sin errores (`flutter analyze` limpio).
 
-**Tasks:**
-1. Add all packages to `pubspec.yaml`:
-   - Prod: `flutter_bloc`, `get_it`, `injectable`, `dio`, `fpdart`, `go_router`, `hive`, `hive_flutter`, `json_annotation`
-   - Dev: `build_runner`, `injectable_generator`, `json_serializable`, `hive_generator`, `mocktail`, `bloc_test`
-2. `lib/core/error/failure.dart` — base `Failure` sealed class
-3. `lib/core/network/api_constants.dart` — base URL constant (`http://localhost:8000/api/v1`)
-4. `lib/core/network/dio_client.dart` — `DioClient` singleton (`@singleton`), configured with base URL and JSON content-type
-5. `lib/core/di/injection.dart` + run `build_runner` to generate `injection.config.dart`
-6. `lib/core/theme/` — `AppColors`, `AppTextStyles`, `AppTheme`
-7. `lib/core/constants/app_assets.dart` — asset path constants
-8. `lib/shared/widgets/atoms/app_button.dart`, `app_text_field.dart`, `app_scaffold.dart`
-9. `lib/app_router.dart` — go_router shell with placeholder routes
-10. `lib/main.dart` — rewrite: init DI, configure router, wrap with `MultiBlocProvider` root
+**Decisión de arquitectura:** Se descartó `get_it`/`injectable`. Se usa **inyección manual de constructores** (ver CLAUDE.md). Los singletons de use cases y repos se instancian en `app_router.dart`.
+
+**Archivos implementados:**
+
+| Archivo | Descripción |
+|---|---|
+| `pubspec.yaml` | `flutter_bloc`, `dio`, `fpdart`, `go_router`, `hive`, `hive_flutter`, `flutter_secure_storage`; dev: `mocktail`, `bloc_test`. **No se usa codegen** (`build_runner`/`json_serializable`/`hive_generator` descartados). Los modelos de infraestructura usan `fromJson` manual. |
+| `lib/core/error/failure.dart` | Sealed `Failure` + `NetworkFailure`, `ServerFailure`, `NotFoundFailure`, `ValidationFailure`, `UnexpectedFailure` |
+| `lib/core/network/api_constants.dart` | `baseUrl = http://localhost:8000/api/v1`, timeouts |
+| `lib/core/network/dio_client.dart` | Factory singleton manual (sin `@singleton`) |
+| `lib/core/network/response/api_error_detail.dart` | Deserializa `{ "code": "...", "message": "..." }` |
+| `lib/core/network/response/base_response.dart` | `detail: ApiErrorDetail?` + `isError` getter |
+| `lib/core/network/response/created_response.dart` | Respuesta 201 `{ "id": "uuid" }` |
+| `lib/core/theme/` | `AppColors`, `AppTextStyles`, `AppTheme.dark` |
+| `lib/core/utils/app_assets.dart` | Constantes de rutas de assets |
+| `lib/core/router/route_properties.dart` | `RouteProperties` con `name`, `path`, `pathRoot`, `fullPath` |
+| `lib/shared/widgets/atoms/app_button.dart` | Botón primario/secundario con loading state |
+| `lib/shared/widgets/atoms/app_text_field.dart` | TextField con validación integrada |
+| `lib/shared/widgets/atoms/app_scaffold.dart` | Scaffold base con AppBar configurado |
+| `lib/shared/widgets/organisms/app_shell.dart` | `NavigationBar` con 5 destinos (shell persistente) |
+| `lib/router/routes.dart` | Catálogo tipado de rutas (`Routes.dashboard`, `Routes.accounts`, …) |
+| `lib/router/app_router.dart` | `GoRouter` + `ShellRoute` + rutas placeholder |
+| `lib/main.dart` | `MaterialApp.router` con `AppTheme.dark` |
 
 ---
 
-### Wave 1 — Independent leaf features *(fully parallel)*
+### Wave 1 — Independent leaf features 🔄 EN PROGRESO
 
 All four can be developed simultaneously.
 
