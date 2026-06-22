@@ -19,6 +19,7 @@ dependencies:
 
   # State management
   flutter_bloc: ^9.1.0
+  equatable: ^2.0.5
 
   # HTTP
   dio: ^5.7.0
@@ -34,9 +35,6 @@ dependencies:
   hive_flutter: ^1.1.0
   flutter_secure_storage: ^9.2.4
 
-  # Serialization annotations (codegen added in Wave 1 when first model is created)
-  json_annotation: ^4.9.0
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -45,11 +43,6 @@ dev_dependencies:
   # Testing
   mocktail: ^1.0.4
   bloc_test: ^10.0.0
-
-  # Added in Wave 1 (when first Hive model and JSON model are needed):
-  # build_runner: ^2.4.13
-  # hive_generator: ^2.0.1
-  # json_serializable: ^6.8.0
 
 flutter:
   uses-material-design: true

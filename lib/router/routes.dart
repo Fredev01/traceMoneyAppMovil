@@ -56,11 +56,23 @@ abstract final class Routes {
     pathRoot: '/income',
   );
 
+  // Categories (under /expenses)
+  static const expenseCategories = RouteProperties(
+    name: 'expenseCategories',
+    path: 'categories',
+    pathRoot: '/expenses',
+  );
+
   // Debts
   static const debtCards = RouteProperties(
     name: 'debtCards',
     path: 'cards',
     pathRoot: '/debts',
+  );
+  static const debtCardNew = RouteProperties(
+    name: 'debtCardNew',
+    path: 'new',
+    pathRoot: '/debts/cards',
   );
   static const debtPlans = RouteProperties(
     name: 'debtPlans',
