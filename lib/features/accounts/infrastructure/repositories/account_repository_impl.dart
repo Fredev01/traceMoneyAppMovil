@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:dio/dio.dart';
 import 'package:fpdart/fpdart.dart';
 import '../../domain/entities/account.dart';
@@ -29,7 +31,8 @@ class AccountRepositoryImpl implements AccountRepository {
       return Right(models.map((m) => m.toEntity()).toList());
     } on DioException catch (e) {
       return Left(_mapDio(e));
-    } catch (_) {
+    } catch (e, st) {
+      log('getAccounts parse error', error: e, stackTrace: st);
       return const Left(AccountServerFailure('Error inesperado.'));
     }
   }

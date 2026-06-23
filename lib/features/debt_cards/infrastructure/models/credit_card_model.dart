@@ -1,3 +1,4 @@
+import 'package:trace_money/core/utils/json_parsers.dart';
 import '../../domain/entities/credit_card.dart';
 
 class CreditCardModel {
@@ -23,7 +24,7 @@ class CreditCardModel {
       CreditCardModel(
         id: json['id'] as String,
         bankName: json['bank_name'] as String,
-        creditLimit: json['credit_limit'] as String,
+        creditLimit: asDecimalString(json['credit_limit']),
         cutDay: json['cut_day'] as int,
         paymentDueDay: json['payment_due_day'] as int,
         color: json['color'] as String,

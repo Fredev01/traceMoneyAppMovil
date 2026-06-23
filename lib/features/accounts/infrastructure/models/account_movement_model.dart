@@ -1,3 +1,4 @@
+import 'package:trace_money/core/utils/json_parsers.dart';
 import '../../domain/entities/account_movement.dart';
 import '../../domain/entities/movement_type.dart';
 
@@ -25,7 +26,7 @@ class AccountMovementModel {
         id: json['id'] as String,
         accountId: json['account_id'] as String,
         movementType: json['movement_type'] as String,
-        amount: json['amount'] as String,
+        amount: asDecimalString(json['amount']),
         movementDate: json['movement_date'] as String,
         note: json['note'] as String?,
         relatedAccountId: json['related_account_id'] as String?,

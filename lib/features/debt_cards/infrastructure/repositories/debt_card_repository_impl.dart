@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:dio/dio.dart';
 import 'package:fpdart/fpdart.dart';
 import '../../domain/entities/credit_card.dart';
@@ -27,7 +29,8 @@ class DebtCardRepositoryImpl implements DebtCardRepository {
       return Right(models.map((m) => m.toEntity()).toList());
     } on DioException catch (e) {
       return Left(_mapDio(e));
-    } catch (_) {
+    } catch (e, st) {
+      log('getDebtCards parse error', error: e, stackTrace: st);
       return const Left(DebtCardServerFailure('Error inesperado.'));
     }
   }

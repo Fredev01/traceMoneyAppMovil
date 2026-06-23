@@ -1,3 +1,4 @@
+import 'package:trace_money/core/utils/json_parsers.dart';
 import '../../domain/entities/income.dart';
 import '../../domain/entities/income_source.dart';
 
@@ -22,7 +23,7 @@ class IncomeModel {
 
   factory IncomeModel.fromJson(Map<String, dynamic> json) => IncomeModel(
         id: json['id'] as String,
-        amount: json['amount'] as String,
+        amount: asDecimalString(json['amount']),
         source: json['source'] as String,
         note: json['note'] as String?,
         incomeDate: json['income_date'] as String,

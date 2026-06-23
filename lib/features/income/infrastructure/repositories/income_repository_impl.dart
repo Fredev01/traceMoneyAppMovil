@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:dio/dio.dart';
 import 'package:fpdart/fpdart.dart';
 import '../../domain/entities/income.dart';
@@ -30,7 +32,8 @@ class IncomeRepositoryImpl implements IncomeRepository {
       return Right(models.map((m) => m.toEntity()).toList());
     } on DioException catch (e) {
       return Left(_mapDio(e));
-    } catch (_) {
+    } catch (e, st) {
+      log('getIncomeByMonth parse error', error: e, stackTrace: st);
       return const Left(IncomeServerFailure('Error inesperado.'));
     }
   }

@@ -1,3 +1,4 @@
+import 'package:trace_money/core/utils/json_parsers.dart';
 import '../../domain/entities/account.dart';
 import '../../domain/entities/account_type.dart';
 
@@ -27,7 +28,7 @@ class AccountModel {
         accountType: json['account_type'] as String,
         bankName: json['bank_name'] as String,
         color: json['color'] as String,
-        creditLimit: json['credit_limit'] as String?,
+        creditLimit: asDecimalStringOrNull(json['credit_limit']),
         cutDay: json['cut_day'] as int?,
         paymentDueDay: json['payment_due_day'] as int?,
         createdAt: json['created_at'] as String,

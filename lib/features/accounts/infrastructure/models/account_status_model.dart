@@ -1,3 +1,4 @@
+import 'package:trace_money/core/utils/json_parsers.dart';
 import '../../domain/entities/account_status.dart';
 import '../../domain/entities/account_type.dart';
 
@@ -44,15 +45,15 @@ class AccountStatusModel {
         accountType: json['account_type'] as String,
         bankName: json['bank_name'] as String,
         color: json['color'] as String,
-        balance: json['balance'] as String?,
-        creditLimit: json['credit_limit'] as String?,
+        balance: asDecimalStringOrNull(json['balance']),
+        creditLimit: asDecimalStringOrNull(json['credit_limit']),
         cutDay: json['cut_day'] as int?,
         paymentDueDay: json['payment_due_day'] as int?,
-        currentCycleCharges: json['current_cycle_charges'] as String?,
-        totalOwed: json['total_owed'] as String?,
-        availableLimit: json['available_limit'] as String?,
+        currentCycleCharges: asDecimalStringOrNull(json['current_cycle_charges']),
+        totalOwed: asDecimalStringOrNull(json['total_owed']),
+        availableLimit: asDecimalStringOrNull(json['available_limit']),
         utilizationPct: (json['utilization_pct'] as num?)?.toDouble(),
-        nextPaymentAmount: json['next_payment_amount'] as String?,
+        nextPaymentAmount: asDecimalStringOrNull(json['next_payment_amount']),
         nextPaymentDate: json['next_payment_date'] as String?,
         daysToCut: json['days_to_cut'] as int?,
         daysToPayment: json['days_to_payment'] as int?,
